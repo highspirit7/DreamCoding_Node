@@ -2,6 +2,7 @@
  * @history
  * 16th Mar 2022(ver0) : 최초에 혼자 시도해서 만듦.
  * 16th Mar 2022(ver1) : 타겟 폴더명 입력에 문제가 있는 경우 에러 핸들링 처리 추가 및 기타 수정.
+ * 16th Mar 2022(ver1.0.1) : 파일 프로세스용 함수 따로 제작, duplicated 폴더용 파일 검사 로직 일부 수정.
  */
 
 // 1. node 명령어에 들어가는 인자 접근하기(폴더명 받기 위해) - process.argv
@@ -11,7 +12,6 @@
 // 3. 해당 폴더의 파일을 순회하면서 확장자를 가지고 파일을 분류하고 적절한 폴더로 옮기기
 const { argv } = require('process');
 const fs = require('fs');
-const fs_promises = require('fs').promises;
 const os = require('os');
 const path = require('path');
 
@@ -28,54 +28,45 @@ if (!targetFolder || !fs.existsSync(workingDir)) {
 	return;
 }
 
-fs_promises
+fs.promises
 	.readdir(workingDir)
 	.then((data) => {
-		// const onlyFiles = [];
-
 		for (let newFolder of folders) {
+			// 이미 해당 폴더가 존재하는지 체크
 			if (!data.includes(newFolder)) {
-				fs_promises.mkdir(`${workingDir}/${newFolder}`).catch(console.error);
+				fs.promises.mkdir(`${workingDir}/${newFolder}`).catch(console.error);
 			}
 		}
-
-		// for (let datum of data) {
-		// 	fs.stat(`${__dirname}/${targetFolder}/${datum}`).then((res) => {
-		// 		if (!res.isDirectory()) onlyFiles.push(datum);
-		// 	});
-		// }
 
 		return data;
 	})
-	.then((files) => {
-		console.log(files);
-		// 모든 파일 순회하면서 분류 그리고 적절한 폴더로 옮기기
-		for (let file of files) {
-			const ext = path.extname(file);
+	.then(processFiles)
+	.catch(console.error);
 
-			let currentPath = path.join(workingDir, file);
-			let destinationPath = '';
+function processFiles(files) {
+	for (let file of files) {
+		const ext = path.extname(file);
 
-			if (ext === '.mov' || ext === '.mp4') {
-				destinationPath = path.join(workingDir, 'video', file);
-				fs_promises.rename(currentPath, destinationPath).catch(console.error);
-			}
-			if (ext === '.png' || ext === '.aae') {
-				destinationPath = path.join(workingDir, 'captured', file);
-				fs_promises.rename(currentPath, destinationPath).catch(console.error);
-			}
-			if (ext === '.jpg') {
-				if (file.includes('E')) {
-					const originalPicName = file.replace('E', '');
+		let currentPath = path.join(workingDir, file);
+		let destinationPath = '';
 
-					if (files.includes(originalPicName)) {
-						currentPath = path.join(workingDir, originalPicName);
-						destinationPath = path.join(workingDir, 'duplicated', originalPicName);
+		if (ext === '.mov' || ext === '.mp4') {
+			destinationPath = path.join(workingDir, 'video', file);
+			fs.promises.rename(currentPath, destinationPath).catch(console.error);
+		}
+		if (ext === '.png' || ext === '.aae') {
+			destinationPath = path.join(workingDir, 'captured', file);
+			fs.promises.rename(currentPath, destinationPath).catch(console.error);
+		}
+		if (file.startsWith('IMG_E')) {
+			const originalPicName = file.replace('E', '');
 
-						fs_promises.rename(currentPath, destinationPath).catch(console.error);
-					}
-				}
+			if (files.includes(originalPicName)) {
+				currentPath = path.join(workingDir, originalPicName);
+				destinationPath = path.join(workingDir, 'duplicated', originalPicName);
+
+				fs.promises.rename(currentPath, destinationPath).catch(console.error);
 			}
 		}
-	})
-	.catch(console.error);
+	}
+}
